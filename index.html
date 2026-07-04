@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Portfolio Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    background: #0E1012;
+    color: #ECE8E0;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 40px 28px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-bottom: 36px; flex-wrap: wrap; gap: 16px;
+  }
+  .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #8B93A1; margin-bottom: 8px; }
+  .total-value { font-family: 'Fraunces', serif; font-size: 44px; font-weight: 500; line-height: 1; }
+  .asof { font-size: 12px; color: #8B93A1; margin-bottom: 4px; text-align: right; }
+  .gain-line { font-family: 'IBM Plex Mono', monospace; font-size: 13px; display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+  .positive { color: #5FBF8B; }
+  .negative { color: #E0665A; }
+  .save-note { font-size: 11px; color: #565D6B; margin-top: 4px; text-align: right; }
+  .grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: #161A1F; border: 1px solid #21262E; border-radius: 10px; padding: 20px 18px; }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .panel-title { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 500; }
+  .muted-small { font-size: 11px; color: #565D6B; }
+  table { border-collapse: collapse; width: 100%; }
+  th { text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #8B93A1; font-weight: 500; padding: 0 10px 10px; }
+  td { padding: 8px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; border-top: 1px solid #21262E; }
+  tr.row:hover { background: #171B21; }
+  input {
+    background: #1D222A; border: 1px solid #2A303A; color: #ECE8E0;
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    padding: 7px 9px; border-radius: 5px; width: 100%; outline: none;
+  }
+  input:focus { border-color: #C9A66B; }
+  input::placeholder { color: #565D6B; }
+  .icon-btn {
+    background: transparent; border: none; color: #565D6B; cursor: pointer;
+    padding: 4px; display: flex; font-size: 16px; line-height: 1;
+  }
+  .icon-btn:hover { color: #E0665A; }
+  .icon-btn.add:hover { color: #D9B77E; }
+  .icon-btn.add { color: #C9A66B; }
+  .ticker-cell { font-weight: 600; color: #ECE8E0; }
+  .cash-cell { font-weight: 600; color: #8FA6C9; }
+  .chart-wrap { position: relative; height: 260px; }
+  .chart-center {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none;
+  }
+  .chart-center-label { font-size: 10px; color: #8B93A1; letter-spacing: 0.08em; text-transform: uppercase; }
+  .chart-center-value { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 500; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; justify-content: center; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8B93A1; }
+  .swatch { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .empty-note { font-size: 13px; color: #565D6B; padding: 40px 0; text-align: center; }
+  .sync-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: #161A1F; border: 1px solid #21262E; border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 20px; font-size: 12px; color: #8B93A1;
+  }
+  .sync-bar input {
+    width: auto; min-width: 160px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 6px 8px;
+  }
+  .sync-bar button {
+    background: transparent; border: 1px solid #2A303A; color: #ECE8E0;
+    font-family: 'Inter', sans-serif; font-size: 12px; padding: 6px 12px;
+    border-radius: 5px; cursor: pointer;
+  }
+  .sync-bar button:hover { border-color: #C9A66B; color: #C9A66B; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .sync-dot.synced { background: #5FBF8B; }
+  .sync-dot.connecting { background: #C9A66B; }
+  .sync-dot.offline { background: #E0665A; }
+  .sync-dot.none { background: #565D6B; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="sync-bar">
+    <span id="syncStatusText"><span class="sync-dot none" id="syncDot"></span>not synced across devices</span>
+    <input id="syncCodeInput" placeholder="sync code" />
+    <button id="connectBtn">Connect</button>
+    <button id="generateBtn">Generate new code</button>
+  </div>
+
+  <div class="header">
+    <div>
+      <div class="eyebrow">Portfolio ledger</div>
+      <div class="total-value" id="totalValue">$0.00</div>
+    </div>
+    <div>
+      <div class="asof" id="asOf"></div>
+      <div class="gain-line" id="gainLine"></div>
+      <div class="save-note" id="saveNote">saved locally</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Holdings</div>
+        <div class="muted-small" id="positionCount">0 positions</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th><th>Avg price</th><th>Shares</th><th>Current</th><th>Value</th><th>Gain / loss</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="holdingsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title" style="margin-bottom:14px;">Allocation</div>
+      <div id="chartArea"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+// ---- Firebase setup ----
+// Paste the config object from your Firebase project here (see README/setup instructions).
+const firebaseConfig = {
+  apiKey: "AIzaSyDr-svRPW_WNJPB87PIvK8LNzLAkLRf_VI",
+  authDomain: "portfoliotracker-f8a6e.firebaseapp.com",
+  projectId: "portfoliotracker-f8a6e",
+  storageBucket: "portfoliotracker-f8a6e.firebasestorage.app",
+  messagingSenderId: "678149267511",
+  appId: "1:678149267511:web:b17558243830cb4d441fb2"
+};
+let db = null;
+let syncEnabled = false;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  syncEnabled = true;
+} catch (e) {
+  syncEnabled = false;
+}
+
+const STORAGE_KEY = 'portfolioTrackerData';
+const PALETTE = ['#C9A66B', '#8FA6C9', '#8B9E7E', '#B58BA6', '#C99B6B', '#6B9EC9', '#A68BC9', '#C96B7E'];
+const CASH_COLOR = '#5A6270';
+
+let state = { holdings: [], cash: 0 };
+let chart = null;
+let syncCode = localStorage.getItem('portfolioSyncCode') || '';
+let unsubscribeSync = null;
+let applyingRemote = false;
+
+function setSyncStatus(status) {
+  const dot = document.getElementById('syncDot');
+  const text = document.getElementById('syncStatusText');
+  dot.className = 'sync-dot ' + status;
+  const labels = {
+    none: 'not synced across devices',
+    connecting: 'connecting…',
+    synced: 'synced (' + syncCode + ')',
+    offline: 'offline — using local copy'
+  };
+  text.childNodes[1].textContent = labels[status] || '';
+}
+
+function randomCode() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
+function connectSync(code) {
+  if (!syncEnabled || !db) { setSyncStatus('offline'); return; }
+  if (unsubscribeSync) unsubscribeSync();
+  syncCode = code.trim().toUpperCase();
+  localStorage.setItem('portfolioSyncCode', syncCode);
+  document.getElementById('syncCodeInput').value = syncCode;
+  setSyncStatus('connecting');
+  unsubscribeSync = db.collection('portfolios').doc(syncCode).onSnapshot(
+    docSnap => {
+      if (docSnap.exists) {
+        const remote = docSnap.data();
+        applyingRemote = true;
+        state = { holdings: remote.holdings || [], cash: remote.cash || 0 };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        render();
+        applyingRemote = false;
+      } else {
+        pushToCloud();
+      }
+      setSyncStatus('synced');
+    },
+    () => setSyncStatus('offline')
+  );
+}
+
+function pushToCloud() {
+  if (!syncEnabled || !db || !syncCode || applyingRemote) return;
+  db.collection('portfolios').doc(syncCode).set(state).catch(() => setSyncStatus('offline'));
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) state = JSON.parse(raw);
+  } catch (e) {}
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    document.getElementById('saveNote').textContent = syncCode ? 'saved locally' : 'saved locally (not synced)';
+  } catch (e) {
+    document.getElementById('saveNote').textContent = 'save failed';
+  }
+  pushToCloud();
+}
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function fmtUSD(n, decimals) {
+  decimals = decimals === undefined ? 2 : decimals;
+  return (n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+function fmtNum(n, decimals) {
+  decimals = decimals === undefined ? 2 : decimals;
+  return (n || 0).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function computeRows() {
+  return state.holdings.map(h => {
+    const price = Number.isFinite(h.currentPrice) ? h.currentPrice : h.avgPrice;
+    const costBasis = h.avgPrice * h.shares;
+    const marketValue = price * h.shares;
+    const gain = marketValue - costBasis;
+    const gainPct = costBasis !== 0 ? (gain / costBasis) * 100 : 0;
+    return Object.assign({}, h, { price, costBasis, marketValue, gain, gainPct });
+  });
+}
+
+function render() {
+  const rows = computeRows();
+  const stockValue = rows.reduce((s, r) => s + r.marketValue, 0);
+  const costBasisTotal = rows.reduce((s, r) => s + r.costBasis, 0);
+  const totalValue = stockValue + (Number(state.cash) || 0);
+  const totalGain = stockValue - costBasisTotal;
+
+  document.getElementById('totalValue').textContent = fmtUSD(totalValue);
+  document.getElementById('asOf').textContent = 'as of ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const gainLine = document.getElementById('gainLine');
+  gainLine.className = 'gain-line ' + (totalGain >= 0 ? 'positive' : 'negative');
+  gainLine.textContent = (totalGain >= 0 ? '+' : '-') + fmtUSD(Math.abs(totalGain)) + ' unrealized';
+  document.getElementById('positionCount').textContent = rows.length + (rows.length === 1 ? ' position' : ' positions');
+
+  const body = document.getElementById('holdingsBody');
+  body.innerHTML = '';
+
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.className = 'row';
+    tr.innerHTML =
+      '<td class="ticker-cell">' + r.ticker + '</td>' +
+      '<td><input type="number" value="' + r.avgPrice + '" data-id="' + r.id + '" data-field="avgPrice" /></td>' +
+      '<td><input type="number" value="' + r.shares + '" data-id="' + r.id + '" data-field="shares" /></td>' +
+      '<td><input type="number" value="' + (r.currentPrice != null ? r.currentPrice : '') + '" placeholder="' + fmtNum(r.avgPrice) + '" data-id="' + r.id + '" data-field="currentPrice" /></td>' +
+      '<td>' + fmtUSD(r.marketValue) + '</td>' +
+      '<td class="' + (r.gain >= 0 ? 'positive' : 'negative') + '">' + (r.gain >= 0 ? '+' : '-') + fmtUSD(Math.abs(r.gain)) + ' (' + fmtNum(r.gainPct, 1) + '%)</td>' +
+      '<td><button class="icon-btn" data-remove="' + r.id + '" aria-label="Remove ' + r.ticker + '">&times;</button></td>';
+    body.appendChild(tr);
+  });
+
+  const cashTr = document.createElement('tr');
+  cashTr.className = 'row';
+  cashTr.innerHTML =
+    '<td class="cash-cell">Cash</td>' +
+    '<td colspan="3" style="color:#565D6B;">&mdash;</td>' +
+    '<td><input type="number" id="cashInput" value="' + state.cash + '" /></td>' +
+    '<td style="color:#565D6B;">&mdash;</td><td></td>';
+  body.appendChild(cashTr);
+
+  const addTr = document.createElement('tr');
+  addTr.innerHTML =
+    '<td><input id="draftTicker" placeholder="TICKER" /></td>' +
+    '<td><input id="draftAvgPrice" type="number" placeholder="0.00" /></td>' +
+    '<td><input id="draftShares" type="number" placeholder="0" /></td>' +
+    '<td><input id="draftCurrentPrice" type="number" placeholder="optional" /></td>' +
+    '<td colspan="2"></td>' +
+    '<td><button class="icon-btn add" id="addBtn" aria-label="Add position">+</button></td>';
+  body.appendChild(addTr);
+
+  document.querySelectorAll('input[data-id]').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const id = e.target.getAttribute('data-id');
+      const field = e.target.getAttribute('data-field');
+      const val = e.target.value === '' ? null : parseFloat(e.target.value);
+      const h = state.holdings.find(x => x.id === id);
+      if (h) h[field] = field === 'currentPrice' ? val : (val || 0);
+      save();
+      render();
+    });
+  });
+  document.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const id = e.target.getAttribute('data-remove');
+      state.holdings = state.holdings.filter(x => x.id !== id);
+      save();
+      render();
+    });
+  });
+  document.getElementById('cashInput').addEventListener('change', e => {
+    state.cash = parseFloat(e.target.value) || 0;
+    save();
+    render();
+  });
+  document.getElementById('addBtn').addEventListener('click', () => {
+    const ticker = document.getElementById('draftTicker').value.trim().toUpperCase();
+    const avgPrice = parseFloat(document.getElementById('draftAvgPrice').value);
+    const shares = parseFloat(document.getElementById('draftShares').value);
+    const currentPrice = parseFloat(document.getElementById('draftCurrentPrice').value);
+    if (!ticker || !Number.isFinite(avgPrice) || !Number.isFinite(shares)) return;
+    state.holdings.push({ id: uid(), ticker, avgPrice, shares, currentPrice: Number.isFinite(currentPrice) ? currentPrice : null });
+    save();
+    render();
+  });
+
+  renderChart(rows, totalValue);
+}
+
+function colorFor(name, idx) {
+  return name === 'Cash' ? CASH_COLOR : PALETTE[idx % PALETTE.length];
+}
+
+function renderChart(rows, totalValue) {
+  const chartArea = document.getElementById('chartArea');
+  const legend = document.getElementById('legend');
+  const slices = rows.filter(r => r.marketValue > 0).map(r => ({ name: r.ticker, value: r.marketValue }));
+  if (state.cash > 0) slices.push({ name: 'Cash', value: state.cash });
+
+  if (slices.length === 0) {
+    chartArea.innerHTML = '<div class="empty-note">Add a position or cash to see your allocation.</div>';
+    legend.innerHTML = '';
+    if (chart) { chart.destroy(); chart = null; }
+    return;
+  }
+
+  chartArea.innerHTML =
+    '<div class="chart-wrap">' +
+      '<canvas id="allocationChart" role="img" aria-label="Donut chart of portfolio allocation by ticker and cash"></canvas>' +
+      '<div class="chart-center">' +
+        '<div class="chart-center-label">Total</div>' +
+        '<div class="chart-center-value">' + fmtUSD(totalValue, 0) + '</div>' +
+      '</div>' +
+    '</div>';
+
+  legend.innerHTML = slices.map((s, idx) =>
+    '<span class="legend-item"><span class="swatch" style="background:' + colorFor(s.name, idx) + '"></span>' +
+    s.name + ' &middot; ' + fmtNum((s.value / totalValue) * 100, 0) + '%</span>'
+  ).join('');
+
+  if (chart) chart.destroy();
+  const ctx = document.getElementById('allocationChart');
+  chart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: slices.map(s => s.name),
+      datasets: [{
+        data: slices.map(s => s.value),
+        backgroundColor: slices.map((s, idx) => colorFor(s.name, idx)),
+        borderColor: '#161A1F',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (item) => item.label + ': ' + fmtUSD(item.parsed)
+          }
+        }
+      }
+    }
+  });
+}
+
+document.getElementById('connectBtn').addEventListener('click', () => {
+  const code = document.getElementById('syncCodeInput').value.trim();
+  if (code) connectSync(code);
+});
+document.getElementById('generateBtn').addEventListener('click', () => {
+  const code = randomCode();
+  document.getElementById('syncCodeInput').value = code;
+  connectSync(code);
+});
+
+load();
+render();
+if (syncCode) {
+  document.getElementById('syncCodeInput').value = syncCode;
+  connectSync(syncCode);
+} else {
+  setSyncStatus('none');
+}
+</script>
+</body>
+</html>
