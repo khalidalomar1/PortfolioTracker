@@ -83,6 +83,13 @@
   .sync-dot.connecting { background: #C9A66B; }
   .sync-dot.offline { background: #E0665A; }
   .sync-dot.none { background: #565D6B; }
+  .div-summary {
+    display: flex; gap: 32px; background: #161A1F; border: 1px solid #21262E;
+    border-radius: 10px; padding: 16px 18px; margin-bottom: 24px; flex-wrap: wrap;
+  }
+  .div-stat { flex: 1; min-width: 160px; }
+  .div-stat-label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #8B93A1; margin-bottom: 6px; }
+  .div-stat-value { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -106,6 +113,17 @@
     </div>
   </div>
 
+  <div class="div-summary">
+    <div class="div-stat">
+      <div class="div-stat-label">Est. monthly dividends</div>
+      <div class="div-stat-value" id="divMonthly">$0.00</div>
+    </div>
+    <div class="div-stat">
+      <div class="div-stat-label">Est. annual dividends</div>
+      <div class="div-stat-value" id="divAnnual">$0.00</div>
+    </div>
+  </div>
+
   <div class="grid">
     <div class="panel">
       <div class="panel-header">
@@ -115,7 +133,7 @@
       <table>
         <thead>
           <tr>
-            <th>Ticker</th><th>Avg price</th><th>Shares</th><th>Current</th><th>Value</th><th>Gain / loss</th><th></th>
+            <th>Ticker</th><th>Avg price</th><th>Shares</th><th>Current</th><th>Div/share (yr)</th><th>Value</th><th>Gain / loss</th><th></th>
           </tr>
         </thead>
         <tbody id="holdingsBody"></tbody>
@@ -249,7 +267,10 @@ function computeRows() {
     const marketValue = price * h.shares;
     const gain = marketValue - costBasis;
     const gainPct = costBasis !== 0 ? (gain / costBasis) * 100 : 0;
-    return Object.assign({}, h, { price, costBasis, marketValue, gain, gainPct });
+    const dividendPerShare = Number.isFinite(h.dividendPerShare) ? h.dividendPerShare : 0;
+    const annualDividend = dividendPerShare * h.shares;
+    const monthlyDividend = annualDividend / 12;
+    return Object.assign({}, h, { price, costBasis, marketValue, gain, gainPct, annualDividend, monthlyDividend });
   });
 }
 
@@ -267,6 +288,11 @@ function render() {
   gainLine.textContent = (totalGain >= 0 ? '+' : '-') + fmtUSD(Math.abs(totalGain)) + ' unrealized';
   document.getElementById('positionCount').textContent = rows.length + (rows.length === 1 ? ' position' : ' positions');
 
+  const totalAnnualDividend = rows.reduce((s, r) => s + r.annualDividend, 0);
+  const totalMonthlyDividend = totalAnnualDividend / 12;
+  document.getElementById('divMonthly').textContent = fmtUSD(totalMonthlyDividend);
+  document.getElementById('divAnnual').textContent = fmtUSD(totalAnnualDividend);
+
   const body = document.getElementById('holdingsBody');
   body.innerHTML = '';
 
@@ -278,6 +304,7 @@ function render() {
       '<td><input type="number" value="' + r.avgPrice + '" data-id="' + r.id + '" data-field="avgPrice" /></td>' +
       '<td><input type="number" value="' + r.shares + '" data-id="' + r.id + '" data-field="shares" /></td>' +
       '<td><input type="number" value="' + (r.currentPrice != null ? r.currentPrice : '') + '" placeholder="' + fmtNum(r.avgPrice) + '" data-id="' + r.id + '" data-field="currentPrice" /></td>' +
+      '<td><input type="number" value="' + (r.dividendPerShare != null ? r.dividendPerShare : '') + '" placeholder="0.00" data-id="' + r.id + '" data-field="dividendPerShare" /></td>' +
       '<td>' + fmtUSD(r.marketValue) + '</td>' +
       '<td class="' + (r.gain >= 0 ? 'positive' : 'negative') + '">' + (r.gain >= 0 ? '+' : '-') + fmtUSD(Math.abs(r.gain)) + ' (' + fmtNum(r.gainPct, 1) + '%)</td>' +
       '<td><button class="icon-btn" data-remove="' + r.id + '" aria-label="Remove ' + r.ticker + '">&times;</button></td>';
@@ -288,7 +315,7 @@ function render() {
   cashTr.className = 'row';
   cashTr.innerHTML =
     '<td class="cash-cell">Cash</td>' +
-    '<td colspan="3" style="color:#565D6B;">&mdash;</td>' +
+    '<td colspan="4" style="color:#565D6B;">&mdash;</td>' +
     '<td><input type="number" id="cashInput" value="' + state.cash + '" /></td>' +
     '<td style="color:#565D6B;">&mdash;</td><td></td>';
   body.appendChild(cashTr);
@@ -299,6 +326,7 @@ function render() {
     '<td><input id="draftAvgPrice" type="number" placeholder="0.00" /></td>' +
     '<td><input id="draftShares" type="number" placeholder="0" /></td>' +
     '<td><input id="draftCurrentPrice" type="number" placeholder="optional" /></td>' +
+    '<td><input id="draftDividend" type="number" placeholder="optional" /></td>' +
     '<td colspan="2"></td>' +
     '<td><button class="icon-btn add" id="addBtn" aria-label="Add position">+</button></td>';
   body.appendChild(addTr);
@@ -309,7 +337,7 @@ function render() {
       const field = e.target.getAttribute('data-field');
       const val = e.target.value === '' ? null : parseFloat(e.target.value);
       const h = state.holdings.find(x => x.id === id);
-      if (h) h[field] = field === 'currentPrice' ? val : (val || 0);
+      if (h) h[field] = (field === 'currentPrice' || field === 'dividendPerShare') ? val : (val || 0);
       save();
       render();
     });
@@ -332,8 +360,16 @@ function render() {
     const avgPrice = parseFloat(document.getElementById('draftAvgPrice').value);
     const shares = parseFloat(document.getElementById('draftShares').value);
     const currentPrice = parseFloat(document.getElementById('draftCurrentPrice').value);
+    const dividendPerShare = parseFloat(document.getElementById('draftDividend').value);
     if (!ticker || !Number.isFinite(avgPrice) || !Number.isFinite(shares)) return;
-    state.holdings.push({ id: uid(), ticker, avgPrice, shares, currentPrice: Number.isFinite(currentPrice) ? currentPrice : null });
+    state.holdings.push({
+      id: uid(),
+      ticker,
+      avgPrice,
+      shares,
+      currentPrice: Number.isFinite(currentPrice) ? currentPrice : null,
+      dividendPerShare: Number.isFinite(dividendPerShare) ? dividendPerShare : null,
+    });
     save();
     render();
   });
